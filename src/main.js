@@ -4,6 +4,7 @@ import { World, predict, powerToSpeed, L, W, R, HL, HW, HEAD_X, FOOT_X } from '.
 import { rackLayout, resolveShot, groupOf } from './rules.js';
 import { planShot, planBreak, chooseCuePosition } from './ai.js';
 import * as sfx from './audio.js';
+import { celebrate } from './confetti.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -13,7 +14,7 @@ const view = new View($('gl'));
 const world = new World();
 
 // ---- persisted settings ---------------------------------------------------
-const prefs = { mode: 'cpu', level: 'medium', cloth: 'blue', sound: true };
+const prefs = { mode: 'cpu', level: 'medium', cloth: 'blue', sound: true, music: true };
 try {
   Object.assign(prefs, JSON.parse(localStorage.getItem('velopool') || '{}'));
 } catch (_) { /* storage unavailable */ }
@@ -340,7 +341,9 @@ function endShot() {
     updateControls();
     const w = S.players[S.winner];
     const you = !w.isAI;
-    sfx.chime(you);
+    celebrate();
+    if (you) sfx.fanfare();
+    else sfx.chime(false);
     toast(`${w.name} win${w.name === 'You' ? '' : 's'}! ${res.winner === 'opponent' && p.name ? (res.foul ? res.reason : 'Pocketed the 8-ball early') : ''}`, !you, 6000);
     setTimeout(() => openSheet(true, `${w.name} win${w.name === 'You' ? '' : 's'}!`), 1800);
     return;
@@ -705,7 +708,21 @@ $('row-level').classList.toggle('hidden', prefs.mode !== 'cpu');
 view.setCloth(CLOTHS[prefs.cloth] ? prefs.cloth : 'blue');
 $('sw-sound').checked = prefs.sound;
 sfx.setEnabled(prefs.sound);
-$('sw-sound').addEventListener('change', (e) => { prefs.sound = e.target.checked; sfx.setEnabled(prefs.sound); savePrefs(); });
+$('sw-sound').addEventListener('change', (e) => {
+  prefs.sound = e.target.checked;
+  sfx.setEnabled(prefs.sound);
+  savePrefs();
+  sfx.unlock(); // a toggle is a user gesture: wake the audio engine and confirm with a click
+  if (prefs.sound) sfx.clack(4);
+});
+$('sw-music').checked = prefs.music;
+sfx.setMusic(prefs.music);
+$('sw-music').addEventListener('change', (e) => {
+  prefs.music = e.target.checked;
+  savePrefs();
+  sfx.unlock();
+  sfx.setMusic(prefs.music);
+});
 $('btn-menu').addEventListener('click', () => openSheet(false));
 $('btn-resume').addEventListener('click', closeSheet);
 $('btn-start').addEventListener('click', () => { sfx.unlock(); closeSheet(); newGame(); });
@@ -809,4 +826,4 @@ openSheet(false);
 requestAnimationFrame(frame);
 
 // debug / test hook
-window.__pool = { S, world, view, fire, newGame, prefs };
+window.__pool = { S, world, view, fire, newGame, prefs, celebrate, sfx };
