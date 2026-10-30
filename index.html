@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0c0d12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="description" content="VeloPool: a 3D 8-ball pool game for desktop and mobile." />
+  <title>VeloPool</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230a84ff'/%3E%3Ccircle cx='32' cy='32' r='13' fill='white'/%3E%3Ctext x='32' y='38' font-size='17' font-weight='700' text-anchor='middle' font-family='Arial' fill='black'%3E8%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <canvas id="gl" aria-label="Pool table"></canvas>
+
+  <header class="hud">
+    <button id="btn-menu" class="glass round" aria-label="Menu">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" fill="none"/></svg>
+    </button>
+    <div class="scorebar glass" role="status" aria-live="polite">
+      <div class="player" id="p0">
+        <div class="avatar" id="av0"></div>
+        <div class="pinfo"><span class="pname" id="pn0">You</span><div class="pills" id="pl0"></div></div>
+      </div>
+      <div class="mid"><span class="mid-top" id="mid-top">8-Ball</span><span class="mid-sub" id="mid-sub"></span></div>
+      <div class="player right" id="p1">
+        <div class="pinfo"><span class="pname" id="pn1">CPU</span><div class="pills" id="pl1"></div></div>
+        <div class="avatar" id="av1"></div>
+      </div>
+    </div>
+    <button id="btn-view" class="glass round txt" aria-label="Toggle 2D / 3D camera">2D</button>
+  </header>
+
+  <div id="toast" class="toast glass" role="alert"></div>
+
+  <aside class="side-left">
+    <button id="btn-spin" class="glass round big" aria-label="Cue ball spin (english)">
+      <span class="miniball"><i id="spin-dot"></i></span>
+    </button>
+    <button id="btn-recenter" class="glass round" aria-label="Reset camera">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+    </button>
+    <button id="btn-look" class="glass round" aria-label="Drag to look around instead of aim" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+    </button>
+  </aside>
+
+  <div id="spin-pop" class="pop glass" hidden>
+    <div class="pop-title">Spin</div>
+    <div id="spin-ball" class="spin-ball" tabindex="0" aria-label="Spin selector"><i id="spin-dot-big"></i></div>
+    <div class="pop-hint">Top &middot; Back &middot; Left &middot; Right</div>
+    <button id="spin-reset" class="pill">Center</button>
+  </div>
+
+  <aside class="side-right">
+    <div id="power" class="power glass" role="slider" tabindex="0" aria-label="Shot power. Pull down and release to shoot." aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="power-fill"></div>
+      <div class="power-knob"><span id="power-val">0</span></div>
+      <div class="power-hint">Pull</div>
+    </div>
+  </aside>
+
+  <footer class="bottom">
+    <div id="fine" class="fine glass" role="slider" aria-label="Fine aim" tabindex="0"><span>Fine aim</span></div>
+    <button id="btn-shoot" class="primary" disabled>Shoot</button>
+    <button id="btn-place" class="primary hidden">Place cue ball</button>
+  </footer>
+
+  <div id="sheet" class="sheet-wrap">
+    <div class="sheet glass" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="logo"><span class="logo-ball">8</span></div>
+      <h1 id="sheet-title">VeloPool</h1>
+      <p class="sub" id="sheet-sub">8-ball billiards</p>
+      <div class="group-label">Opponent</div>
+      <div class="seg" id="seg-mode"><button data-v="cpu" class="on">Computer</button><button data-v="2p">2 Players</button></div>
+      <div id="row-level">
+        <div class="group-label">Difficulty</div>
+        <div class="seg" id="seg-level"><button data-v="easy">Easy</button><button data-v="medium" class="on">Medium</button><button data-v="hard">Hard</button></div>
+      </div>
+      <div class="group-label">Cloth</div>
+      <div class="swatches" id="swatches">
+        <button data-v="blue" class="on" style="--c:#2f8fd0" aria-label="Blue cloth"></button>
+        <button data-v="green" style="--c:#2f9a58" aria-label="Green cloth"></button>
+        <button data-v="red" style="--c:#c2383c" aria-label="Red cloth"></button>
+      </div>
+      <label class="switch-row"><span>Sound</span><input type="checkbox" id="sw-sound" checked /></label>
+      <button id="btn-start" class="primary wide">New Game</button>
+      <button id="btn-resume" class="pill wide hidden">Resume</button>
+      <p class="tiny">Drag to aim &middot; pull the power bar down &amp; release to shoot</p>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
