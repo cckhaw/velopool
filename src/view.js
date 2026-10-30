@@ -6,9 +6,9 @@ import { L, W, R, HL, HW, POCKETS, CUSHIONS, CORNER_GAP, SIDE_GAP } from './phys
 export const w3 = (x, y, h = R) => new THREE.Vector3(x, h, -y);
 
 export const CLOTHS = {
-  blue: { felt: '#1b78bd', cushion: '#176aa8', name: 'Blue' },
-  green: { felt: '#1f8a49', cushion: '#1a7640', name: 'Green' },
-  red: { felt: '#b52d33', cushion: '#9c2429', name: 'Red' },
+  blue: { felt: '#083f73', cushion: '#06335c', name: 'Blue' },
+  green: { felt: '#07522a', cushion: '#054421', name: 'Green' },
+  red: { felt: '#6e141c', cushion: '#581016', name: 'Red' },
 };
 
 const BALL_COLORS = ['#f4f1ea', '#f5c518', '#1d4fd8', '#d7261e', '#5b2a9c', '#f2761a', '#13803b', '#8c1d22', '#111111'];
@@ -30,7 +30,7 @@ function feltTexture() {
   g.fillRect(0, 0, 256, 256);
   const img = g.getImageData(0, 0, 256, 256);
   for (let i = 0; i < img.data.length; i += 4) {
-    const n = 205 + Math.random() * 50;
+    const n = 150 + Math.random() * 60;
     img.data[i] = img.data[i + 1] = img.data[i + 2] = n;
   }
   g.putImageData(img, 0, 0);
@@ -147,11 +147,11 @@ export class View {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.9;
+    renderer.toneMappingExposure = 0.85;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#0c0d12');
-    this.scene.fog = new THREE.Fog('#0c0d12', 6, 16);
+    this.scene.background = new THREE.Color('#0b0907');
+    this.scene.fog = new THREE.Fog('#0b0907', 9, 24);
     const pm = new THREE.PMREMGenerator(renderer);
     this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environmentIntensity = 0.3;
@@ -166,8 +166,8 @@ export class View {
     this.ballMeshes = [];
 
     this.buildLights();
-    this.buildRoom();
     this.buildTable();
+    this.buildRoom();
     this.buildBalls();
     this.buildCue();
     this.buildGuide();
@@ -180,8 +180,8 @@ export class View {
   buildLights() {
     const s = this.scene;
     s.add(new THREE.HemisphereLight('#cfd8ff', '#201810', 0.3));
-    const spot = new THREE.SpotLight('#fff4e0', 70, 0, 0.8, 0.6, 1.4);
-    spot.position.set(0, 3.1, 0);
+    const spot = new THREE.SpotLight('#fff1d6', 42, 0, 0.8, 0.6, 1.4);
+    spot.position.set(0, 2.6, 0);
     spot.target.position.set(0, 0, 0);
     spot.castShadow = true;
     const sm = this.mobile ? 1024 : 2048;
@@ -197,29 +197,310 @@ export class View {
   }
 
   buildRoom() {
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(40, 40),
-      new THREE.MeshStandardMaterial({ color: '#1a1511', roughness: 0.85, map: woodTexture('#3b281b') }),
-    );
-    floor.material.map.repeat.set(10, 10);
+    const scene = this.scene;
+    const FLOOR = -0.85;
+    const RW = 7; // half width (x)
+    const RD = 5; // half depth (z)
+    const RH = 3.6; // ceiling height
+    const std = (o) => new THREE.MeshStandardMaterial(o);
+
+    // floor: dark planks with a rug under the table
+    const fmap = woodTexture('#2c1d14');
+    fmap.repeat.set(7, 5);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2, RD * 2), std({ map: fmap, roughness: 0.55, color: '#bbbbbb' }));
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -0.85;
+    floor.position.y = FLOOR;
     floor.receiveShadow = true;
-    this.scene.add(floor);
-    // hanging lamp
-    const lamp = new THREE.Mesh(
-      new THREE.BoxGeometry(2.2, 0.06, 0.34),
-      new THREE.MeshStandardMaterial({ color: '#fff7e6', emissive: '#fff1d0', emissiveIntensity: 3 }),
-    );
-    lamp.position.set(0, 3.1, 0);
-    this.lamp = lamp;
-    this.scene.add(lamp);
-    const wall = new THREE.Mesh(
-      new THREE.CylinderGeometry(9, 9, 6, 48, 1, true),
-      new THREE.MeshStandardMaterial({ color: '#15171f', roughness: 1, side: THREE.BackSide }),
-    );
-    wall.position.y = 2;
-    this.scene.add(wall);
+    scene.add(floor);
+    const rugC = canvas(256, 256);
+    const rg = rugC.getContext('2d');
+    rg.fillStyle = '#3a1418';
+    rg.fillRect(0, 0, 256, 256);
+    rg.strokeStyle = '#b08a4a';
+    rg.lineWidth = 5;
+    rg.strokeRect(14, 14, 228, 228);
+    rg.lineWidth = 2;
+    rg.strokeRect(26, 26, 204, 204);
+    const rugT = new THREE.CanvasTexture(rugC);
+    rugT.colorSpace = THREE.SRGBColorSpace;
+    const rug = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 4.0), std({ map: rugT, roughness: 1 }));
+    rug.rotation.x = -Math.PI / 2;
+    rug.position.y = FLOOR + 0.004;
+    rug.receiveShadow = true;
+    scene.add(rug);
+
+    // walls: brick above, panelled wainscot below
+    const brickC = canvas(512, 256);
+    const bg = brickC.getContext('2d');
+    bg.fillStyle = '#1c0f0d';
+    bg.fillRect(0, 0, 512, 256);
+    for (let r = 0; r < 16; r++) {
+      for (let c = -1; c < 8; c++) {
+        const x = c * 64 + (r % 2 ? 32 : 0);
+        const l = 16 + Math.random() * 10;
+        bg.fillStyle = `hsl(${8 + Math.random() * 8}, ${40 + Math.random() * 15}%, ${l}%)`;
+        bg.fillRect(x + 2, r * 16 + 2, 60, 12);
+      }
+    }
+    const brickT = new THREE.CanvasTexture(brickC);
+    brickT.colorSpace = THREE.SRGBColorSpace;
+    brickT.wrapS = brickT.wrapT = THREE.RepeatWrapping;
+    const panelC = canvas(256, 256);
+    const pg = panelC.getContext('2d');
+    pg.fillStyle = '#10261c';
+    pg.fillRect(0, 0, 256, 256);
+    pg.strokeStyle = 'rgba(0,0,0,.55)';
+    pg.lineWidth = 4;
+    pg.strokeRect(14, 22, 228, 212);
+    pg.strokeStyle = 'rgba(255,255,255,.07)';
+    pg.lineWidth = 2;
+    pg.strokeRect(18, 26, 220, 204);
+    const panelT = new THREE.CanvasTexture(panelC);
+    panelT.colorSpace = THREE.SRGBColorSpace;
+    panelT.wrapS = panelT.wrapT = THREE.RepeatWrapping;
+
+    const wallH = RH - (FLOOR * -1) - 0; // floor to ceiling
+    const wainH = 1.0;
+    const addWall = (len, px, pz, ry) => {
+      const g = new THREE.Group();
+      const upH = RH - FLOOR - wainH;
+      const bt = brickT.clone();
+      bt.needsUpdate = true;
+      bt.repeat.set(len / 2.2, upH / 1.1);
+      const up = new THREE.Mesh(new THREE.PlaneGeometry(len, upH), std({ map: bt, roughness: 0.95 }));
+      up.position.y = FLOOR + wainH + upH / 2;
+      const pt = panelT.clone();
+      pt.needsUpdate = true;
+      pt.repeat.set(len / 1.0, 1);
+      const wain = new THREE.Mesh(new THREE.PlaneGeometry(len, wainH), std({ map: pt, roughness: 0.5 }));
+      wain.position.y = FLOOR + wainH / 2;
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06, 0.07), this.woodMat || std({ color: '#4a2a18', roughness: 0.4 }));
+      rail.position.set(0, FLOOR + wainH, 0.03);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.04), std({ color: '#1a1008', roughness: 0.5 }));
+      base.position.set(0, FLOOR + 0.06, 0.02);
+      g.add(up, wain, rail, base);
+      g.position.set(px, 0, pz);
+      g.rotation.y = ry;
+      scene.add(g);
+      return g;
+    };
+    void wallH;
+    this.walls = {
+      n: addWall(RW * 2, 0, -RD, 0),
+      s: addWall(RW * 2, 0, RD, Math.PI),
+      e: addWall(RD * 2, RW, 0, -Math.PI / 2),
+      w: addWall(RD * 2, -RW, 0, Math.PI / 2),
+    };
+    // ceiling (faces down, so it vanishes when the 2D camera looks from above)
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2, RD * 2), std({ color: '#120d0a', roughness: 1 }));
+    ceil.rotation.x = Math.PI / 2;
+    ceil.position.y = RH + FLOOR;
+    scene.add(ceil);
+    this.ceiling = ceil;
+    const topY = RH + FLOOR;
+
+    // neon sign
+    const sc = canvas(1024, 384);
+    const sg = sc.getContext('2d');
+    sg.textAlign = 'center';
+    sg.textBaseline = 'middle';
+    sg.font = '800 220px "SF Pro Rounded", -apple-system, Helvetica, Arial, sans-serif';
+    sg.shadowColor = '#ff2d78';
+    sg.shadowBlur = 50;
+    sg.fillStyle = '#ff6fa5';
+    sg.fillText('POOL', 512, 160);
+    sg.shadowBlur = 24;
+    sg.fillText('POOL', 512, 160);
+    sg.shadowColor = '#2fd0ff';
+    sg.fillStyle = '#9be8ff';
+    sg.font = '700 76px -apple-system, Helvetica, Arial, sans-serif';
+    sg.fillText('BILLIARDS  ·  8 BALL', 512, 310);
+    const signT = new THREE.CanvasTexture(sc);
+    signT.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.98), new THREE.MeshBasicMaterial({ map: signT, transparent: true, toneMapped: false, depthWrite: false }));
+    sign.position.set(0, 1.55, -RD + 0.03);
+    scene.add(sign);
+    const signLight = new THREE.PointLight('#ff4f8f', 6, 5, 2);
+    signLight.position.set(0, 1.4, -RD + 0.8);
+    scene.add(signLight);
+
+    // bar along the north wall
+    const barWood = std({ color: '#2b1810', roughness: 0.35 });
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.95, 0.55), barWood);
+    bar.position.set(-3.2, FLOOR + 0.475, -RD + 0.9);
+    bar.castShadow = true;
+    scene.add(bar);
+    const barTop = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.05, 0.7), std({ color: '#5a3a24', roughness: 0.25 }));
+    barTop.position.set(-3.2, FLOOR + 0.975, -RD + 0.9);
+    scene.add(barTop);
+    for (let i = 0; i < 5; i++) {
+      const x = -5.3 + i * 0.95;
+      const stool = new THREE.Group();
+      const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.07, 20), std({ color: '#7a1c22', roughness: 0.5 }));
+      seat.position.y = 0.72;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 10), std({ color: '#999', metalness: 0.9, roughness: 0.3 }));
+      stem.position.y = 0.35;
+      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 20), std({ color: '#777', metalness: 0.9, roughness: 0.35 }));
+      foot.position.y = 0.015;
+      stool.add(seat, stem, foot);
+      stool.position.set(x, FLOOR, -RD + 1.55);
+      stool.children.forEach((m) => (m.castShadow = true));
+      scene.add(stool);
+    }
+    // back-bar shelf with bottles
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(5, 0.04, 0.25), barWood);
+    shelf.position.set(-3.2, FLOOR + 1.55, -RD + 0.15);
+    scene.add(shelf);
+    const bottleGeo = new THREE.CylinderGeometry(0.032, 0.04, 0.26, 12);
+    const bcols = ['#2c7a3f', '#b5651d', '#d8c27a', '#7a2a2a', '#3a6a9a', '#c9c9c9'];
+    for (let i = 0; i < 18; i++) {
+      const m = new THREE.Mesh(bottleGeo, new THREE.MeshPhysicalMaterial({ color: bcols[i % bcols.length], roughness: 0.1, transmission: 0, clearcoat: 1, emissive: bcols[i % bcols.length], emissiveIntensity: 0.25 }));
+      m.position.set(-5.5 + i * 0.27, FLOOR + 1.57 + 0.15, -RD + 0.15);
+      scene.add(m);
+    }
+    const barGlow = new THREE.PointLight('#ffb765', 4, 4.5, 2);
+    barGlow.position.set(-3.2, FLOOR + 2.0, -RD + 0.8);
+    scene.add(barGlow);
+
+    // framed pictures + dartboard + cue rack on the other walls
+    const frame = (w, h, x, y, z, ry, col) => {
+      const f = new THREE.Group();
+      const c = canvas(128, 128);
+      const g = c.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 128, 128);
+      gr.addColorStop(0, col[0]);
+      gr.addColorStop(1, col[1]);
+      g.fillStyle = gr;
+      g.fillRect(0, 0, 128, 128);
+      g.fillStyle = 'rgba(255,255,255,.85)';
+      g.beginPath();
+      g.arc(64, 64, 26, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#111';
+      g.font = '700 30px Arial';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText('8', 64, 66);
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace;
+      const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }));
+      pic.position.z = 0.02;
+      const fr = new THREE.Mesh(new THREE.BoxGeometry(w + 0.08, h + 0.08, 0.03), std({ color: '#2a1a0e', roughness: 0.4 }));
+      f.add(fr, pic);
+      f.position.set(x, y, z);
+      f.rotation.y = ry;
+      scene.add(f);
+    };
+    for (let i = 0; i < 3; i++) {
+      frame(0.7, 0.9, -2 + i * 2, 0.85, RD - 0.03, Math.PI, [['#0a5c9c', '#0b2a4a'], ['#b5262e', '#4a0d12'], ['#1c7a46', '#0b3320']][i]);
+    }
+    for (let i = 0; i < 3; i++) {
+      frame(0.8, 0.6, RW - 0.03, 0.9, -2.5 + i * 2.5, -Math.PI / 2, [['#c28a1b', '#4a2a06'], ['#5a2a9c', '#1c0b3a'], ['#0a5c9c', '#0b2a4a']][i]);
+    }
+    // dartboard
+    const dc = canvas(256, 256);
+    const dg = dc.getContext('2d');
+    dg.fillStyle = '#111';
+    dg.beginPath();
+    dg.arc(128, 128, 126, 0, 7);
+    dg.fill();
+    for (let i = 0; i < 20; i++) {
+      for (const [r0, r1, a, b] of [[20, 100, '#e8dcb0', '#111'], [100, 112, '#c0282d', '#1f7a3f'], [60, 70, '#c0282d', '#1f7a3f']]) {
+        void r0;
+        dg.fillStyle = i % 2 ? a : b;
+        dg.beginPath();
+        dg.moveTo(128, 128);
+        dg.arc(128, 128, r1 + (r0 === 100 ? 8 : 0), (i / 20) * 6.2832, ((i + 1) / 20) * 6.2832);
+        dg.fill();
+      }
+    }
+    dg.fillStyle = '#1f7a3f';
+    dg.beginPath();
+    dg.arc(128, 128, 18, 0, 7);
+    dg.fill();
+    dg.fillStyle = '#c0282d';
+    dg.beginPath();
+    dg.arc(128, 128, 8, 0, 7);
+    dg.fill();
+    const dt = new THREE.CanvasTexture(dc);
+    dt.colorSpace = THREE.SRGBColorSpace;
+    const dart = new THREE.Mesh(new THREE.CircleGeometry(0.23, 32), new THREE.MeshStandardMaterial({ map: dt, roughness: 0.8 }));
+    dart.position.set(-RW + 0.03, 1.05, 1.6);
+    dart.rotation.y = Math.PI / 2;
+    scene.add(dart);
+    // cue rack
+    const rack = new THREE.Group();
+    rack.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.9), barWood));
+    for (let i = 0; i < 5; i++) {
+      const cue = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 1.4, 8), std({ color: i % 2 ? '#d9b77f' : '#3a2316', roughness: 0.4 }));
+      cue.position.set(0.04, -0.45, -0.36 + i * 0.18);
+      rack.add(cue);
+    }
+    rack.position.set(-RW + 0.05, 1.45, -1.0);
+    scene.add(rack);
+
+    // extra pool tables in the background, each with its own lamp
+    this.lamps = [];
+    const lampMat = new THREE.MeshStandardMaterial({ color: '#fff7e6', emissive: '#ffe2b0', emissiveIntensity: 2.2 });
+    const shadeMat = std({ color: '#1b3a2a', roughness: 0.5, side: THREE.DoubleSide });
+    const addLamp = (x, z, len, y = topY - 0.9) => {
+      const l = new THREE.Group();
+      const shade = new THREE.Mesh(new THREE.CylinderGeometry(len * 0.3, len * 0.5, 0.22, 4, 1, true), shadeMat);
+      shade.rotation.y = Math.PI / 4;
+      shade.scale.set(1, 1, 0.34 / len + 0.18);
+      const bulb = new THREE.Mesh(new THREE.BoxGeometry(len * 0.8, 0.03, 0.12), lampMat);
+      bulb.position.y = -0.1;
+      const cordL = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.9, 5), std({ color: '#111' }));
+      cordL.position.set(-len * 0.3, 0.55, 0);
+      const cordR = cordL.clone();
+      cordR.position.x = len * 0.3;
+      l.add(shade, bulb, cordL, cordR);
+      l.position.set(x, y, z);
+      scene.add(l);
+      this.lamps.push(l);
+    };
+    this.mainLamp = new THREE.Group();
+    const addTable = (x, z, ry, felt) => {
+      const t = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.2, 1.5), this.woodMat || std({ color: '#4a2a18' }));
+      body.position.y = -0.1;
+      const top = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.02, 1.25), std({ color: felt, roughness: 1 }));
+      top.position.y = 0.0;
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.06, 1.6), std({ color: '#3a2012', roughness: 0.4 }));
+      rim.position.y = 0.0;
+      rim.scale.set(1, 1, 1);
+      const frameT = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.07, 1.6), std({ color: '#3a2012', roughness: 0.4 }));
+      frameT.position.y = -0.005;
+      const inner = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.09, 1.25), std({ color: felt, roughness: 1 }));
+      inner.position.y = 0.0;
+      t.add(body, frameT, inner);
+      void top; void rim;
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.2), std({ color: '#3a2012', roughness: 0.4 }));
+        leg.position.set(sx * 1.2, -0.5, sz * 0.65);
+        t.add(leg);
+      }
+      t.position.set(x, 0, z);
+      t.rotation.y = ry;
+      t.children.forEach((m) => (m.castShadow = true));
+      scene.add(t);
+      addLamp(x, z, 1.8);
+    };
+    addTable(-4.3, 2.5, 0, '#0e5a8c');
+    addTable(4.3, -2.4, 0, '#0e6a36');
+    addTable(4.3, 2.6, Math.PI / 2, '#7e1c24');
+    // main lamp over our table (the key light comes from the spot above)
+    addLamp(0, 0, 2.2, topY - 0.95);
+
+    // a few ceiling spill lights so the walls read as warm, not black
+    const warm = new THREE.PointLight('#ffcf94', 3, 9, 2);
+    warm.position.set(0, topY - 0.6, 0);
+    scene.add(warm);
+    for (const [x, z] of [[-4.3, 2.5], [4.3, -2.4], [4.3, 2.6]]) {
+      const pl = new THREE.PointLight('#ffd9a8', 4, 5, 2);
+      pl.position.set(x, topY - 0.9, z);
+      scene.add(pl);
+    }
   }
 
   buildTable() {
@@ -490,7 +771,9 @@ export class View {
     const fz = -Math.sin(r.yaw);
     this.camera.position.set(r.tx - fx * r.dist * cp, r.ty + Math.sin(r.pitch) * r.dist, r.tz - fz * r.dist * cp);
     this.camera.lookAt(r.tx, r.ty, r.tz);
-    this.lamp.visible = this.camera.position.y < 2.9;
+    const camY = this.camera.position.y;
+    for (const l of this.lamps) l.visible = camY < 2.0;
+    this.ceiling.visible = camY < 2.7;
     if (Math.abs(this.camera.fov - r.fov) > 0.01) {
       this.camera.fov = r.fov;
       this.camera.updateProjectionMatrix();
