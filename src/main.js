@@ -97,7 +97,7 @@ function renderHud() {
   if (!S.inGame) { top.textContent = '8-Ball'; sub.textContent = ''; return; }
   const cur = S.players[S.turn];
   if (S.phase === 'over') { top.textContent = 'Game over'; sub.textContent = ''; return; }
-  top.textContent = S.breakShot ? 'Break' : cur.isAI ? 'CPU turn' : S.players.length && !S.players[1].isAI ? cur.name : 'Your turn';
+  top.textContent = S.breakShot ? 'Break' : cur.isAI ? `${cur.name}'s turn` : S.players.length && !S.players[1].isAI ? cur.name : 'Your turn';
   sub.textContent = cur.group ? (cur.group === 'solid' ? 'Solids' : 'Stripes') : 'Open table';
 }
 
@@ -169,11 +169,14 @@ function setSpin(x, y) {
 }
 
 // ---- game flow ----------------------------------------------------------
+const BOT_NAMES = ['Maya', 'Leo', 'Sofia', 'Jack', 'Aiko', 'Marco', 'Nina', 'Omar', 'Chloe', 'Ravi', 'Elena', 'Theo', 'Zara', 'Diego', 'Mei', 'Finn', 'Priya', 'Hugo', 'Lena', 'Kai'];
+const BOT_FACES = ['😎', '🧑‍🎤', '🦊', '🐯', '🧔', '👩‍🦰', '🧑‍🚀', '🕶️', '🎩', '🐼'];
+const pick = (a) => a[(Math.random() * a.length) | 0];
 function newGame() {
   const cpu = prefs.mode === 'cpu';
   S.players = [
     { name: cpu ? 'You' : 'Player 1', avatar: cpu ? '🙂' : '1', isAI: false, group: null, colors: ['#5ac8fa', '#0a84ff'] },
-    { name: cpu ? 'CPU' : 'Player 2', avatar: cpu ? '🤖' : '2', isAI: cpu, group: null, colors: ['#ff9f0a', '#ff375f'] },
+    { name: cpu ? pick(BOT_NAMES) : 'Player 2', avatar: cpu ? pick(BOT_FACES) : '2', isAI: cpu, group: null, colors: ['#ff9f0a', '#ff375f'] },
   ];
   S.inGame = true;
   S.explore = false;
@@ -356,7 +359,7 @@ function endShot() {
     sfx.chime(false);
   } else if (!res.keep) {
     S.turn = 1 - S.turn;
-    toast(S.players[S.turn].isAI ? "CPU's turn" : S.players.length && !S.players[1].isAI ? `${S.players[S.turn].name}'s turn` : 'Your turn', false, 1400);
+    toast(S.players[S.turn].isAI ? `${S.players[S.turn].name}'s turn` : S.players.length && !S.players[1].isAI ? `${S.players[S.turn].name}'s turn` : 'Your turn', false, 1400);
   } else {
     toast('Nice shot — shoot again', false, 1400);
   }
@@ -815,7 +818,7 @@ function frame(now) {
 // first paint: show the menu over a racked table
 S.players = [
   { name: 'You', avatar: '🙂', group: null, colors: ['#5ac8fa', '#0a84ff'] },
-  { name: 'CPU', avatar: '🤖', group: null, colors: ['#ff9f0a', '#ff375f'] },
+  { name: pick(BOT_NAMES), avatar: pick(BOT_FACES), group: null, colors: ['#ff9f0a', '#ff375f'] },
 ];
 rack();
 renderHud();
