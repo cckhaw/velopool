@@ -7,7 +7,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="description" content="VeloPool: a 3D 8-ball pool game for desktop and mobile." />
   <title>VeloPool</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230a84ff'/%3E%3Ccircle cx='32' cy='32' r='13' fill='white'/%3E%3Ctext x='32' y='38' font-size='17' font-weight='700' text-anchor='middle' font-family='Arial' fill='black'%3E8%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-title" content="VeloPool" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
 </head>
 <body>
   <canvas id="gl" aria-label="Pool table"></canvas>
@@ -31,6 +38,8 @@
   </header>
 
   <div id="explore-badge" class="badge glass hidden">Survey mode &middot; drag to look &middot; pinch to zoom &middot; two fingers to move</div>
+
+  <canvas id="confetti" aria-hidden="true"></canvas>
 
   <div id="toast" class="toast glass" role="alert"></div>
 
@@ -89,7 +98,8 @@
         <button data-v="green" style="--c:#2f9a58" aria-label="Green cloth"></button>
         <button data-v="red" style="--c:#c2383c" aria-label="Red cloth"></button>
       </div>
-      <label class="switch-row"><span>Sound</span><input type="checkbox" id="sw-sound" checked /></label>
+      <label class="switch-row"><span>Sound effects</span><input type="checkbox" id="sw-sound" checked /></label>
+      <label class="switch-row"><span>Music</span><input type="checkbox" id="sw-music" checked /></label>
       <button id="btn-start" class="primary wide">New Game</button>
       <button id="btn-resume" class="pill wide hidden">Resume</button>
       <p class="tiny">Drag to aim &middot; pull the power bar down &amp; release to shoot</p>
