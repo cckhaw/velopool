@@ -148,3 +148,5 @@ h1 { margin: 4px 0 0; font-size: 30px; letter-spacing: -.4px; }
   .fine { width: 34vw; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.badge { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 74px); padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--fg2); z-index: 5; pointer-events: none; text-align: center; max-width: calc(100vw - 150px); }

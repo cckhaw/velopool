@@ -34,6 +34,8 @@ const S = {
   spin: { x: 0, y: 0 },
   view: '3d',
   look: false,
+  explore: false,
+  ex: { tx: 0, tz: 0, yaw: 0, pitch: 0.95, dist: 3 },
   yawOff: 0,
   pitch: 0.42,
   dist: 1.05,
@@ -99,16 +101,46 @@ function renderHud() {
 }
 
 function updateControls() {
-  const aiming = S.phase === 'aiming' && !S.players[S.turn].isAI;
-  const placing = S.phase === 'placing' && !S.players[S.turn].isAI;
+  const mine = !S.players[S.turn].isAI;
+  const ex = S.explore;
+  const aiming = S.phase === 'aiming' && mine && !ex;
+  const placing = S.phase === 'placing' && mine;
   $('power').classList.toggle('disabled', !aiming);
   $('fine').classList.toggle('disabled', !aiming);
+  $('fine').classList.toggle('hidden', ex);
   $('btn-shoot').disabled = !aiming;
-  $('btn-shoot').classList.toggle('hidden', placing);
-  $('btn-place').classList.toggle('hidden', !placing);
+  $('btn-shoot').classList.toggle('hidden', placing || ex);
+  $('btn-place').classList.toggle('hidden', !placing || ex);
   $('btn-place').disabled = !S.placeValid;
+  $('btn-back').classList.toggle('hidden', !ex);
+  $('btn-back').textContent = S.phase === 'placing' && mine ? 'Back to placing' : S.phase === 'aiming' && mine ? 'Back to aiming' : 'Done';
   $('btn-spin').style.opacity = aiming ? 1 : 0.5;
-  $('btn-view').textContent = S.view === '3d' ? '2D' : '3D';
+  $('btn-explore').setAttribute('aria-pressed', ex);
+  $('btn-explore').setAttribute('aria-label', ex ? 'Leave survey mode' : 'Survey the table');
+  $('explore-badge').classList.toggle('hidden', !ex);
+  $('btn-view').textContent = ex ? (S.ex.pitch > 1.4 ? '3D' : '2D') : S.view === '3d' ? '2D' : '3D';
+}
+
+function exploreOverview() {
+  const portrait = view.aspect < 1;
+  Object.assign(S.ex, { tx: 0, tz: 0, pitch: 0.95, dist: portrait ? 3.8 : 3.1 });
+}
+
+function setExplore(on) {
+  if (on === S.explore || !S.inGame || S.phase === 'menu') return;
+  if (on) {
+    powerDrag = false;
+    powerEl.classList.remove('drag');
+    setPower(0);
+    S.ex.yaw = view.rig.yaw;
+    exploreOverview();
+    S.explore = true;
+    toast('Survey mode · drag to look, pinch or scroll to zoom', false, 2600);
+  } else {
+    S.explore = false;
+  }
+  sfx.tick();
+  updateControls();
 }
 
 function setPower(p) {
@@ -143,6 +175,7 @@ function newGame() {
     { name: cpu ? 'CPU' : 'Player 2', avatar: cpu ? '🤖' : '2', isAI: cpu, group: null, colors: ['#ff9f0a', '#ff375f'] },
   ];
   S.inGame = true;
+  S.explore = false;
   S.turn = 0;
   S.breakShot = true;
   S.winner = null;
@@ -237,7 +270,7 @@ function confirmPlacement() {
 }
 
 function fire(power) {
-  if (S.phase !== 'aiming') return;
+  if (S.phase !== 'aiming' || S.explore) return;
   S.lastPower = power;
   S.phase = 'striking';
   S.strike = { t: 0, power, pull: power };
@@ -372,6 +405,7 @@ function updateAI(dt) {
 // ---- camera policy -------------------------------------------------------
 function cameraGoal() {
   const c = world.cue;
+  if (S.explore) return { tx: S.ex.tx, ty: 0, tz: S.ex.tz, yaw: S.ex.yaw, pitch: S.ex.pitch, dist: S.ex.dist, fov: view.fovFor3D() };
   if (S.view === '2d') return view.fitTable2D();
   const fov = view.fovFor3D();
   const portrait = view.aspect < 1;
@@ -410,8 +444,9 @@ canvas.addEventListener('pointerdown', (e) => {
     const [a, b] = [...pointers.values()];
     pinch = Math.hypot(a.x - b.x, a.y - b.y);
   }
-  dragMode = e.button === 2 || e.shiftKey || S.look ? 'look' : 'aim';
+  dragMode = S.explore ? (e.button === 2 || e.shiftKey ? 'pan' : 'orbit') : e.button === 2 || e.shiftKey || S.look ? 'look' : 'aim';
   draggingBall = false;
+  if (S.explore) return;
   if (S.phase === 'placing' && !S.players[S.turn].isAI) {
     const p = view.pick(e.clientX, e.clientY);
     if (p) {
@@ -442,6 +477,15 @@ canvas.addEventListener('pointermove', (e) => {
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     if (pinch > 0) zoom(pinch / d);
     pinch = d;
+    if (S.explore) panBy(dx / 2, dy / 2); // two fingers also drag the view
+    return;
+  }
+  if (S.explore) {
+    if (dragMode === 'pan') panBy(dx, dy);
+    else {
+      S.ex.yaw -= dx * 0.006;
+      S.ex.pitch = clamp(S.ex.pitch + dy * 0.005, 0.12, Math.PI / 2 - 0.0005);
+    }
     return;
   }
   if (draggingBall) {
@@ -472,7 +516,18 @@ canvas.addEventListener('pointercancel', up);
 canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoom(1 + e.deltaY * 0.001); }, { passive: false });
 
 function zoom(f) {
-  S.dist = clamp(S.dist * f, 0.55, 2.4);
+  if (S.explore) S.ex.dist = clamp(S.ex.dist * f, 0.6, 6.5);
+  else S.dist = clamp(S.dist * f, 0.55, 2.4);
+}
+
+// slide the survey camera across the table (drag the cloth under your finger)
+function panBy(dx, dy) {
+  const e = S.ex;
+  const k = e.dist * 0.0014;
+  const fx = Math.cos(e.yaw);
+  const fz = -Math.sin(e.yaw);
+  e.tx = clamp(e.tx - -fz * dx * k + fx * dy * k * 1.3, -HL - 0.6, HL + 0.6);
+  e.tz = clamp(e.tz - fx * dx * k + fz * dy * k * 1.3, -HW - 0.6, HW + 0.6);
 }
 
 // power slider: pull down and release to shoot
@@ -539,13 +594,19 @@ fineEl.addEventListener('pointercancel', () => (fineDrag = null));
 
 $('btn-shoot').addEventListener('click', () => { sfx.unlock(); fire(S.power > 0.04 ? S.power : S.lastPower); });
 $('btn-place').addEventListener('click', confirmPlacement);
-$('btn-view').addEventListener('click', () => { S.view = S.view === '3d' ? '2d' : '3d'; updateControls(); sfx.tick(); });
-$('btn-recenter').addEventListener('click', () => { S.yawOff = 0; S.pitch = 0.42; S.dist = 1.05; sfx.tick(); });
-$('btn-look').addEventListener('click', () => {
-  S.look = !S.look;
-  $('btn-look').setAttribute('aria-pressed', S.look);
+$('btn-view').addEventListener('click', () => {
+  if (S.explore) S.ex.pitch = S.ex.pitch > 1.4 ? 0.95 : Math.PI / 2 - 0.0005;
+  else S.view = S.view === '3d' ? '2d' : '3d';
+  updateControls();
+  sfx.tick();
 });
-
+$('btn-recenter').addEventListener('click', () => {
+  if (S.explore) exploreOverview();
+  else { S.yawOff = 0; S.pitch = 0.42; S.dist = 1.05; }
+  sfx.tick();
+});
+$('btn-explore').addEventListener('click', () => setExplore(!S.explore));
+$('btn-back').addEventListener('click', () => setExplore(false));
 // spin popover
 const spinPop = $('spin-pop');
 $('btn-spin').addEventListener('click', () => { sfx.unlock(); spinPop.hidden = !spinPop.hidden; });
@@ -571,9 +632,10 @@ addEventListener('keydown', (e) => {
   if (e.target.closest && e.target.closest('#sheet')) return;
   keys.add(e.key);
   if (e.key === 'v' || e.key === 'V') $('btn-view').click();
+  if (e.key === 'e' || e.key === 'E') setExplore(!S.explore);
   if (e.key === 'Escape') openSheet(false);
-  if (e.key === 'Enter' && S.phase === 'placing') confirmPlacement();
-  if (e.code === 'Space' && S.phase === 'aiming' && !e.repeat) { sfx.unlock(); S.charge = true; e.preventDefault(); }
+  if (e.key === 'Enter' && S.phase === 'placing' && !S.explore) confirmPlacement();
+  if (e.code === 'Space' && S.phase === 'aiming' && !S.explore && !e.repeat) { sfx.unlock(); S.charge = true; e.preventDefault(); }
 });
 addEventListener('keyup', (e) => {
   keys.delete(e.key);
@@ -635,7 +697,14 @@ function frame(now) {
 
   if (!paused) {
     // keyboard aiming
-    if (S.phase === 'aiming' && !S.players[S.turn].isAI) {
+    if (S.explore) {
+      if (keys.has('ArrowLeft')) S.ex.yaw += dt * 1.2;
+      if (keys.has('ArrowRight')) S.ex.yaw -= dt * 1.2;
+      if (keys.has('ArrowUp')) S.ex.pitch = clamp(S.ex.pitch + dt, 0.12, Math.PI / 2 - 0.0005);
+      if (keys.has('ArrowDown')) S.ex.pitch = clamp(S.ex.pitch - dt, 0.12, Math.PI / 2 - 0.0005);
+      if (keys.has('+') || keys.has('=')) zoom(1 - dt);
+      if (keys.has('-')) zoom(1 + dt);
+    } else if (S.phase === 'aiming' && !S.players[S.turn].isAI) {
       const fine = keys.has('Alt') ? 0.15 : 1;
       if (keys.has('ArrowLeft')) S.aim += dt * 1.1 * fine * (keys.has('Shift') ? 0.25 : 1);
       if (keys.has('ArrowRight')) S.aim -= dt * 1.1 * fine * (keys.has('Shift') ? 0.25 : 1);
