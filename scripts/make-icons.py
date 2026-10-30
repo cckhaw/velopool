@@ -23,16 +23,16 @@ def ball(size):
 
 
 def tile(size, fill):
-    """Opaque square icon: dark navy gradient with the ball at `fill` of the width and a soft shadow."""
+    """Opaque square icon: light yellow gradient with the ball at `fill` of the width and a soft shadow."""
     bg = Image.new('RGB', (size, size))
     d = ImageDraw.Draw(bg)
     for y in range(size):
         t = y / size
-        d.line([(0, y), (size, y)], fill=(int(14 + 6 * (1 - t)), int(52 - 26 * t), int(96 - 54 * t)))
+        d.line([(0, y), (size, y)], fill=(255, int(247 - 17 * t), int(184 - 44 * t)))
     bd = int(size * fill)
     b = ball(bd)
     sh = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    ImageDraw.Draw(sh).ellipse(((size - bd) // 2, (size - bd) // 2 + size // 40, (size + bd) // 2, (size + bd) // 2 + size // 40), fill=(0, 0, 0, 120))
+    ImageDraw.Draw(sh).ellipse(((size - bd) // 2, (size - bd) // 2 + size // 40, (size + bd) // 2, (size + bd) // 2 + size // 40), fill=(90, 70, 0, 90))
     sh = sh.filter(ImageFilter.GaussianBlur(size / 48))
     bg = Image.alpha_composite(bg.convert('RGBA'), sh)
     bg.alpha_composite(b, ((size - bd) // 2, (size - bd) // 2))
