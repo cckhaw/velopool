@@ -92,7 +92,11 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--blue);
 
 .bottom { position: fixed; left: 0; right: 0; bottom: calc(var(--sab) + 14px); display: flex; gap: 12px; align-items: center; justify-content: center; z-index: 5; pointer-events: none; }
 .bottom > * { pointer-events: auto; }
-.fine { width: min(240px, 38vw); height: 48px; border-radius: 24px; display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--fg2); touch-action: none; cursor: ew-resize; background-image: repeating-linear-gradient(90deg, var(--fill) 0 2px, transparent 2px 14px); background-position: var(--off, 0px) 0; background-blend-mode: normal; }
+.fine { width: min(300px, 44vw); height: 48px; border-radius: 24px; display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+.fine-strip { flex: 1; height: 40px; display: grid; place-items: center; font-size: 12px; font-weight: 600; color: var(--fg2); touch-action: none; cursor: ew-resize; border-radius: 20px; background-image: repeating-linear-gradient(90deg, var(--fill) 0 2px, transparent 2px 12px); background-position: var(--off, 0px) 0; }
+.fine-strip span { background: var(--glass); padding: 2px 8px; border-radius: 10px; pointer-events: none; }
+.nudge { width: 40px; height: 40px; min-width: 40px; border-radius: 50%; background: var(--fill); font-size: 26px; line-height: 1; display: grid; place-items: center; padding: 0 0 3px; touch-action: none; }
+.nudge:active { background: var(--blue); color: #fff; }
 .primary { background: var(--blue); color: #fff; font-weight: 700; font-size: 17px; border-radius: 24px; min-height: 48px; padding: 0 28px; box-shadow: 0 6px 18px rgba(10,132,255,.45); transition: transform .12s, opacity .2s; }
 .primary:active { transform: scale(.96); }
 .primary:disabled { opacity: .35; box-shadow: none; }
@@ -144,8 +148,9 @@ h1 { margin: 4px 0 0; font-size: 30px; letter-spacing: -.4px; }
   .hud { gap: 6px; left: calc(var(--sal) + 8px); right: calc(var(--sar) + 8px); }
   .scorebar { padding: 5px 6px; }
   .side-left { flex-direction: column-reverse; }
-  .bottom { justify-content: center; padding-left: 80px; padding-right: 80px; }
-  .fine { width: 34vw; }
+  .bottom { justify-content: center; padding-left: 80px; padding-right: 76px; }
+  .bottom { flex-wrap: wrap; row-gap: 8px; }
+  .fine { order: -1; flex: 0 0 100%; width: 100%; max-width: 260px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 

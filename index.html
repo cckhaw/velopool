@@ -62,7 +62,11 @@
   </aside>
 
   <footer class="bottom">
-    <div id="fine" class="fine glass" role="slider" aria-label="Fine aim" tabindex="0"><span>Fine aim</span></div>
+    <div id="fine" class="fine glass" role="group" aria-label="Fine aim">
+      <button id="fine-l" class="nudge" aria-label="Nudge aim left">&#8249;</button>
+      <div id="fine-strip" class="fine-strip" role="slider" tabindex="0" aria-label="Fine aim. Drag sideways, or use the arrow keys."><span>Fine aim</span></div>
+      <button id="fine-r" class="nudge" aria-label="Nudge aim right">&#8250;</button>
+    </div>
     <button id="btn-shoot" class="primary" disabled>Shoot</button>
     <button id="btn-place" class="primary hidden">Place cue ball</button>
     <button id="btn-back" class="primary hidden">Back to aiming</button>

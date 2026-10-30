@@ -573,24 +573,51 @@ powerEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { if (S.power > 0.04) fire(S.power); }
 });
 
-// fine aim strip
+// fine aim: drag the strip, or tap / hold the arrow buttons
 const fineEl = $('fine');
+const strip = $('fine-strip');
+const FINE_PX = 0.001; // rad per dragged pixel (~0.06 deg)
+const FINE_STEP = 0.0017; // ~0.1 deg per tap
 let fineDrag = null;
-fineEl.addEventListener('pointerdown', (e) => {
-  if (S.phase !== 'aiming') return;
+const canFine = () => S.phase === 'aiming' && !S.explore && !S.players[S.turn].isAI;
+function nudgeAim(rad) {
+  S.aim += rad;
+  strip.style.setProperty('--off', (parseFloat(strip.style.getPropertyValue('--off')) || 0) - rad / FINE_PX + 'px');
+}
+strip.addEventListener('pointerdown', (e) => {
+  if (!canFine()) return;
   sfx.unlock();
   fineDrag = e.clientX;
-  fineEl.setPointerCapture(e.pointerId);
+  strip.setPointerCapture(e.pointerId);
 });
-fineEl.addEventListener('pointermove', (e) => {
-  if (fineDrag == null) return;
+strip.addEventListener('pointermove', (e) => {
+  if (fineDrag == null || !canFine()) return;
   const dx = e.clientX - fineDrag;
   fineDrag = e.clientX;
-  S.aim -= dx * 0.0006;
-  fineEl.style.setProperty('--off', (parseFloat(fineEl.style.getPropertyValue('--off')) || 0) + dx + 'px');
+  nudgeAim(-dx * FINE_PX);
 });
-fineEl.addEventListener('pointerup', () => (fineDrag = null));
-fineEl.addEventListener('pointercancel', () => (fineDrag = null));
+strip.addEventListener('pointerup', () => (fineDrag = null));
+strip.addEventListener('pointercancel', () => (fineDrag = null));
+strip.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') { nudgeAim(FINE_STEP); e.preventDefault(); }
+  if (e.key === 'ArrowRight') { nudgeAim(-FINE_STEP); e.preventDefault(); }
+});
+for (const [id, dir] of [['fine-l', 1], ['fine-r', -1]]) {
+  const btn = $(id);
+  let hold = 0;
+  let rep = 0;
+  const stop = () => { clearTimeout(hold); clearInterval(rep); };
+  btn.addEventListener('pointerdown', (e) => {
+    if (!canFine()) return;
+    sfx.unlock();
+    btn.setPointerCapture(e.pointerId);
+    nudgeAim(dir * FINE_STEP);
+    sfx.tick();
+    stop();
+    hold = setTimeout(() => { rep = setInterval(() => canFine() && nudgeAim(dir * FINE_STEP * 0.6), 40); }, 320);
+  });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) btn.addEventListener(t, stop);
+}
 
 $('btn-shoot').addEventListener('click', () => { sfx.unlock(); fire(S.power > 0.04 ? S.power : S.lastPower); });
 $('btn-place').addEventListener('click', confirmPlacement);
