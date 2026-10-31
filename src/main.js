@@ -36,6 +36,10 @@ const S = {
   view: '3d',
   look: false,
   explore: false,
+  replay: null,
+  lastReplay: null,
+  pending: null,
+  overTitle: '',
   ex: { tx: 0, tz: 0, yaw: 0, pitch: 0.95, dist: 3 },
   yawOff: 0,
   pitch: 0.42,
@@ -67,6 +71,11 @@ function renderPills(i) {
     return;
   }
   const ids = p.group === 'solid' ? [1, 2, 3, 4, 5, 6, 7] : [9, 10, 11, 12, 13, 14, 15];
+  // size the dots so up to eight of them always fit the card as perfect circles
+  const n = ids.every((id) => !world.balls[id].inPlay) ? 8 : 7; // the 8-ball dot only shows once your group is cleared
+  const room = $('p' + i).clientWidth - 14;
+  const pb = room > 0 ? clamp(Math.floor((room - (n - 1) * 2) / n), 7, 13) : 12;
+  el.style.setProperty('--pb', pb + 'px');
   const all8 = ids.every((id) => !world.balls[id].inPlay);
   for (const id of ids) {
     const d = document.createElement('i');
@@ -103,9 +112,10 @@ function renderHud() {
 
 function updateControls() {
   const mine = !S.players[S.turn].isAI;
-  const ex = S.explore;
+  const rp = !!S.replay;
+  const ex = S.explore || rp;
   const aiming = S.phase === 'aiming' && mine && !ex;
-  const placing = S.phase === 'placing' && mine;
+  const placing = S.phase === 'placing' && mine && !rp;
   $('power').classList.toggle('disabled', !aiming);
   $('fine').classList.toggle('disabled', !aiming);
   $('fine').classList.toggle('hidden', ex);
@@ -114,11 +124,15 @@ function updateControls() {
   $('btn-place').classList.toggle('hidden', !placing || ex);
   $('btn-place').disabled = !S.placeValid;
   $('btn-back').classList.toggle('hidden', !ex);
-  $('btn-back').textContent = S.phase === 'placing' && mine ? 'Back to placing' : S.phase === 'aiming' && mine ? 'Back to aiming' : 'Done';
+  $('btn-back').textContent = rp ? 'Stop replay' : S.phase === 'placing' && mine ? 'Back to placing' : S.phase === 'aiming' && mine ? 'Back to aiming' : 'Done';
+  $('btn-slow').classList.toggle('hidden', !rp);
+  $('btn-slow').textContent = rp && S.replay.slow ? 'Slow-mo on' : 'Slow-mo';
+  $('btn-replay').disabled = !S.lastReplay || rp || !((S.phase === 'aiming' || S.phase === 'placing') && mine);
   $('btn-spin').style.opacity = aiming ? 1 : 0.5;
   $('btn-explore').setAttribute('aria-pressed', ex);
   $('btn-explore').setAttribute('aria-label', ex ? 'Leave survey mode' : 'Survey the table');
   $('explore-badge').classList.toggle('hidden', !ex);
+  $('explore-badge').textContent = rp ? `Replay · ${S.lastReplay.label}` : 'Survey mode · drag to look · pinch to zoom · two fingers to move';
   $('btn-view').textContent = ex ? (S.ex.pitch > 1.4 ? '3D' : '2D') : S.view === '3d' ? '2D' : '3D';
 }
 
@@ -128,7 +142,7 @@ function exploreOverview() {
 }
 
 function setExplore(on) {
-  if (on === S.explore || !S.inGame || S.phase === 'menu') return;
+  if (on === S.explore || !S.inGame || S.phase === 'menu' || S.replay) return;
   if (on) {
     powerDrag = false;
     powerEl.classList.remove('drag');
@@ -178,8 +192,10 @@ function newGame() {
     { name: cpu ? 'You' : 'Player 1', avatar: cpu ? '🙂' : '1', isAI: false, group: null, colors: ['#5ac8fa', '#0a84ff'] },
     { name: cpu ? pick(BOT_NAMES) : 'Player 2', avatar: cpu ? pick(BOT_FACES) : '2', isAI: cpu, group: null, colors: ['#ff9f0a', '#ff375f'] },
   ];
+  if (S.replay) stopReplay(true);
   S.inGame = true;
   S.explore = false;
+  S.lastReplay = null;
   S.turn = 0;
   S.breakShot = true;
   S.winner = null;
@@ -266,7 +282,7 @@ function movePlacement(x, y) {
 }
 
 function confirmPlacement() {
-  if (S.phase !== 'placing' || !S.placeValid) return;
+  if (S.phase !== 'placing' || !S.placeValid || S.replay) return;
   sfx.tick();
   S.phase = 'aiming';
   autoAim();
@@ -274,7 +290,7 @@ function confirmPlacement() {
 }
 
 function fire(power) {
-  if (S.phase !== 'aiming' || S.explore) return;
+  if (S.phase !== 'aiming' || S.explore || S.replay) return;
   S.lastPower = power;
   S.phase = 'striking';
   S.strike = { t: 0, power, pull: power };
@@ -291,6 +307,14 @@ function launch() {
     rail: false,
     before: world.balls.filter((b) => b.id > 0 && b.inPlay).map((b) => b.id),
     isBreak: S.breakShot,
+  };
+  S.pending = {
+    snap: world.balls.map((b) => ({ x: b.x, y: b.y, inPlay: b.inPlay, pocket: b.pocket })),
+    quats: view.ballMeshes.map((m) => m.quaternion.clone()),
+    aim: S.aim,
+    speed,
+    ox: S.spin.x,
+    oy: S.spin.y,
   };
   world.strike(S.aim, speed, S.spin.x, S.spin.y);
   sfx.cue(power);
@@ -328,6 +352,11 @@ function endShot() {
   const shot = S.shot;
   const res = resolveShot({ group: p.group, isBreak: shot.isBreak, shot, before: shot.before });
   S.breakShot = false;
+  if (S.pending && (shot.pocketed.length || shot.cuePocketed)) {
+    const names = shot.pocketed.map((id) => `#${id}`);
+    if (shot.cuePocketed) names.push('cue ball');
+    S.lastReplay = { ...S.pending, label: `${p.name}: ${names.join(', ')}` };
+  }
   if (res.assign) {
     p.group = res.assign;
     S.players[1 - S.turn].group = res.assign === 'solid' ? 'stripe' : 'solid';
@@ -348,7 +377,8 @@ function endShot() {
     if (you) sfx.fanfare();
     else sfx.chime(false);
     toast(`${w.name} win${w.name === 'You' ? '' : 's'}! ${res.winner === 'opponent' && p.name ? (res.foul ? res.reason : 'Pocketed the 8-ball early') : ''}`, !you, 6000);
-    setTimeout(() => openSheet(true, `${w.name} win${w.name === 'You' ? '' : 's'}!`), 1800);
+    S.overTitle = `${w.name} win${w.name === 'You' ? '' : 's'}!`;
+    setTimeout(() => openSheet(true, S.overTitle), 1800);
     return;
   }
   let inHand = false;
@@ -365,6 +395,54 @@ function endShot() {
   }
   if (!world.cue.inPlay) { world.place(0, HEAD_X, 0); }
   beginTurn(inHand);
+}
+
+// ---- replay of the last pocketed shot ----------------------------------------------
+// The physics is deterministic, so a shot is replayed by re-running it from its starting layout.
+function startReplay(onEnd) {
+  const r0 = S.lastReplay;
+  if (!r0 || S.replay) return;
+  S.explore = false;
+  spinPop.hidden = true;
+  const rw = new World();
+  rw.onBallHit = (a, b, speed, x, y) => {
+    sfx.clack(speed);
+    if (speed > 1.2) view.puff(x, y, R, 2, Math.min(1.5, speed / 3));
+  };
+  rw.onCushion = (b, speed) => sfx.thud(speed);
+  rw.onPocket = () => sfx.pocket();
+  r0.snap.forEach((b, i) => Object.assign(rw.balls[i], { x: b.x, y: b.y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, inPlay: b.inPlay, pocket: b.pocket }));
+  const liveQuats = view.ballMeshes.map((m) => m.quaternion.clone());
+  r0.quats.forEach((q, i) => view.ballMeshes[i].quaternion.copy(q));
+  view.hidePocketed(rw.balls);
+  rw.strike(r0.aim, r0.speed, r0.ox, r0.oy);
+  S.replay = { world: rw, aim: r0.aim, t: 0, still: 0, slow: false, started: false, liveQuats, onEnd };
+  setPower(0);
+  updateControls();
+}
+
+function stopReplay(silent = false) {
+  const r = S.replay;
+  if (!r) return;
+  r.liveQuats.forEach((q, i) => view.ballMeshes[i].quaternion.copy(q));
+  view.hidePocketed(world.balls);
+  S.replay = null;
+  updateControls();
+  if (!silent && r.onEnd) r.onEnd();
+}
+
+function stepReplay(dt) {
+  const r = S.replay;
+  r.t += dt;
+  if (r.t < 0.8) return; // let the camera settle first
+  if (!r.started) {
+    r.started = true;
+    sfx.cue(0.6);
+  }
+  r.world.step(dt * (r.slow ? 0.35 : 1));
+  if (!r.world.isMoving()) r.still += dt;
+  else r.still = 0;
+  if (r.still > 1.2 || r.t > 45) stopReplay();
 }
 
 // ---- AI ----------------------------------------------------------------
@@ -411,6 +489,10 @@ function updateAI(dt) {
 // ---- camera policy -------------------------------------------------------
 function cameraGoal() {
   const c = world.cue;
+  if (S.replay) {
+    if (S.view === '2d') return view.fitTable2D();
+    return { tx: 0, ty: 0, tz: 0, yaw: S.replay.aim, pitch: 0.95, dist: view.aspect < 1 ? 3.3 : 2.9, fov: view.fovFor3D() };
+  }
   if (S.explore) return { tx: S.ex.tx, ty: 0, tz: S.ex.tz, yaw: S.ex.yaw, pitch: S.ex.pitch, dist: S.ex.dist, fov: view.fovFor3D() };
   if (S.view === '2d') return view.fitTable2D();
   const fov = view.fovFor3D();
@@ -446,6 +528,7 @@ canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (S.replay) return;
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     pinch = Math.hypot(a.x - b.x, a.y - b.y);
@@ -473,7 +556,7 @@ function aimAtPoint(cx, cy) {
 
 canvas.addEventListener('pointermove', (e) => {
   const prev = pointers.get(e.pointerId);
-  if (!prev) return;
+  if (!prev || S.replay) return;
   const dx = e.clientX - prev.x;
   const dy = e.clientY - prev.y;
   prev.x = e.clientX;
@@ -545,7 +628,7 @@ function powerFromEvent(e) {
 }
 let lastTick = 0;
 powerEl.addEventListener('pointerdown', (e) => {
-  if (S.phase !== 'aiming') return;
+  if (S.phase !== 'aiming' || S.replay) return;
   sfx.unlock();
   powerDrag = true;
   powerEl.classList.add('drag');
@@ -585,7 +668,7 @@ const strip = $('fine-strip');
 const FINE_PX = 0.001; // rad per dragged pixel (~0.06 deg)
 const FINE_STEP = 0.0017; // ~0.1 deg per tap
 let fineDrag = null;
-const canFine = () => S.phase === 'aiming' && !S.explore && !S.players[S.turn].isAI;
+const canFine = () => S.phase === 'aiming' && !S.explore && !S.replay && !S.players[S.turn].isAI;
 function nudgeAim(rad) {
   S.aim += rad;
   strip.style.setProperty('--off', (parseFloat(strip.style.getPropertyValue('--off')) || 0) - rad / FINE_PX + 'px');
@@ -639,7 +722,13 @@ $('btn-recenter').addEventListener('click', () => {
   sfx.tick();
 });
 $('btn-explore').addEventListener('click', () => setExplore(!S.explore));
-$('btn-back').addEventListener('click', () => setExplore(false));
+$('btn-back').addEventListener('click', () => (S.replay ? stopReplay() : setExplore(false)));
+$('btn-replay').addEventListener('click', () => { sfx.unlock(); startReplay(); });
+$('btn-slow').addEventListener('click', () => { if (S.replay) { S.replay.slow = !S.replay.slow; updateControls(); } });
+$('btn-replay-sheet').addEventListener('click', () => {
+  closeSheet();
+  startReplay(() => { if (S.phase === 'over') openSheet(true, S.overTitle); });
+});
 // spin popover
 const spinPop = $('spin-pop');
 $('btn-spin').addEventListener('click', () => { sfx.unlock(); spinPop.hidden = !spinPop.hidden; });
@@ -667,8 +756,8 @@ addEventListener('keydown', (e) => {
   if (e.key === 'v' || e.key === 'V') $('btn-view').click();
   if (e.key === 'e' || e.key === 'E') setExplore(!S.explore);
   if (e.key === 'Escape') openSheet(false);
-  if (e.key === 'Enter' && S.phase === 'placing' && !S.explore) confirmPlacement();
-  if (e.code === 'Space' && S.phase === 'aiming' && !S.explore && !e.repeat) { sfx.unlock(); S.charge = true; e.preventDefault(); }
+  if (e.key === 'Enter' && S.phase === 'placing' && !S.explore && !S.replay) confirmPlacement();
+  if (e.code === 'Space' && S.phase === 'aiming' && !S.explore && !S.replay && !e.repeat) { sfx.unlock(); S.charge = true; e.preventDefault(); }
 });
 addEventListener('keyup', (e) => {
   keys.delete(e.key);
@@ -687,6 +776,7 @@ function openSheet(over = false, title = 'VeloPool') {
   $('sheet-sub').textContent = over ? 'Play another rack?' : '8-ball billiards';
   $('btn-start').textContent = S.inGame && !over ? 'Restart game' : 'New Game';
   $('btn-resume').classList.toggle('hidden', !(S.inGame && !over));
+  $('btn-replay-sheet').classList.toggle('hidden', !S.lastReplay);
   S.prevPhase = S.phase;
 }
 function closeSheet() { sheet.classList.add('off'); }
@@ -751,7 +841,7 @@ function frame(now) {
       if (keys.has('ArrowDown')) S.ex.pitch = clamp(S.ex.pitch - dt, 0.12, Math.PI / 2 - 0.0005);
       if (keys.has('+') || keys.has('=')) zoom(1 - dt);
       if (keys.has('-')) zoom(1 + dt);
-    } else if (S.phase === 'aiming' && !S.players[S.turn].isAI) {
+    } else if (S.phase === 'aiming' && !S.players[S.turn].isAI && !S.replay) {
       const fine = keys.has('Alt') ? 0.15 : 1;
       if (keys.has('ArrowLeft')) S.aim += dt * 1.1 * fine * (keys.has('Shift') ? 0.25 : 1);
       if (keys.has('ArrowRight')) S.aim -= dt * 1.1 * fine * (keys.has('Shift') ? 0.25 : 1);
@@ -767,7 +857,9 @@ function frame(now) {
       if (st.t < 0.12) st.pull = st.power * (1 - st.t / 0.12);
       else if (!st.hit) { st.hit = true; st.pull = 0; launch(); }
     }
-    if (S.phase === 'rolling') {
+    if (S.replay) {
+      stepReplay(dt);
+    } else if (S.phase === 'rolling') {
       world.step(dt);
       if (!world.isMoving()) {
         settleTimer += dt;
@@ -775,12 +867,9 @@ function frame(now) {
       } else {
         settleTimer = 0;
       }
-    } else {
-      view.syncBalls(world.balls, 0, now);
     }
   }
-  if (S.phase === 'rolling' || S.phase === 'over') view.syncBalls(world.balls, dt, now);
-  else view.syncBalls(world.balls, dt, now);
+  view.syncBalls(S.replay ? S.replay.world.balls : world.balls, dt, now);
 
   // cue + guide
   const c = world.cue;
@@ -808,6 +897,12 @@ function frame(now) {
     view.ring.scale.setScalar(1);
   }
 
+  if (S.replay) {
+    view.cue.visible = false;
+    view.hideGuide();
+  }
+  view.breakZone.visible = S.phase === 'placing' && S.breakShot && !S.replay && !S.players[S.turn].isAI;
+
   view.setCamera(cameraGoal(), view.snapNext);
   view.snapNext = false;
   view.updateCamera(dt);
@@ -829,4 +924,4 @@ openSheet(false);
 requestAnimationFrame(frame);
 
 // debug / test hook
-window.__pool = { S, world, view, fire, newGame, prefs, celebrate, sfx };
+window.__pool = { S, world, view, fire, newGame, prefs, celebrate, sfx, startReplay, stopReplay };
