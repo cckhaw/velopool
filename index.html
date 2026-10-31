@@ -26,12 +26,14 @@
     <div class="scorebar glass" role="status" aria-live="polite">
       <div class="player" id="p0">
         <div class="avatar" id="av0"></div>
-        <div class="pinfo"><span class="pname" id="pn0">You</span><div class="pills" id="pl0"></div></div>
+        <span class="pname" id="pn0">You</span>
+        <div class="pills" id="pl0"></div>
       </div>
       <div class="mid"><span class="mid-top" id="mid-top">8-Ball</span><span class="mid-sub" id="mid-sub"></span></div>
       <div class="player right" id="p1">
-        <div class="pinfo"><span class="pname" id="pn1">Player 2</span><div class="pills" id="pl1"></div></div>
+        <span class="pname" id="pn1">Player 2</span>
         <div class="avatar" id="av1"></div>
+        <div class="pills" id="pl1"></div>
       </div>
     </div>
     <button id="btn-view" class="glass round txt" aria-label="Toggle 2D / 3D camera">2D</button>
@@ -46,6 +48,9 @@
   <aside class="side-left">
     <button id="btn-spin" class="glass round big" aria-label="Cue ball spin (english)">
       <span class="miniball"><i id="spin-dot"></i></span>
+    </button>
+    <button id="btn-replay" class="glass round" aria-label="Replay the last pocketed shot" disabled>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10.5 9.2v5.6l4.5-2.8z" fill="currentColor" stroke="none"/></svg>
     </button>
     <button id="btn-recenter" class="glass round" aria-label="Reset camera">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
@@ -78,6 +83,7 @@
     </div>
     <button id="btn-shoot" class="primary" disabled>Shoot</button>
     <button id="btn-place" class="primary hidden">Place cue ball</button>
+    <button id="btn-slow" class="pill hidden">Slow-mo</button>
     <button id="btn-back" class="primary hidden">Back to aiming</button>
   </footer>
 
@@ -102,6 +108,7 @@
       <label class="switch-row"><span>Music</span><input type="checkbox" id="sw-music" checked /></label>
       <button id="btn-start" class="primary wide">New Game</button>
       <button id="btn-resume" class="pill wide hidden">Resume</button>
+      <button id="btn-replay-sheet" class="pill wide hidden">Watch replay of the last pocketed shot</button>
       <p class="tiny">Drag to aim &middot; pull the power bar down &amp; release to shoot</p>
     </div>
   </div>

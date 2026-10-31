@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { L, W, R, HL, HW, POCKETS, CUSHIONS, CORNER_GAP, SIDE_GAP } from './physics.js';
+import { L, W, R, HL, HW, HEAD_X, FOOT_X, POCKETS, CUSHIONS, CORNER_GAP, SIDE_GAP } from './physics.js';
 
 // physical (x, y) -> three.js world (x, h, -y)
 export const w3 = (x, y, h = R) => new THREE.Vector3(x, h, -y);
@@ -100,6 +100,52 @@ function ballTexture(id) {
   return t;
 }
 
+// Top-down ball marker used in the 2D view: solids are a flat colour disc, stripes a white disc
+// with a coloured band, so the two can't be confused whatever way the real ball has rolled.
+function flatTexture(id) {
+  const S = 256;
+  const c = canvas(S, S);
+  const g = c.getContext('2d');
+  const color = BALL_COLORS[id <= 8 ? id : id - 8];
+  const stripe = id > 8;
+  g.beginPath();
+  g.arc(S / 2, S / 2, S / 2 - 6, 0, Math.PI * 2);
+  g.save();
+  g.clip();
+  g.fillStyle = id === 0 || stripe ? '#f7f5ee' : color;
+  g.fillRect(0, 0, S, S);
+  if (stripe) {
+    g.fillStyle = color;
+    g.fillRect(0, S * 0.24, S, S * 0.52);
+  }
+  g.restore();
+  g.lineWidth = 9;
+  g.strokeStyle = 'rgba(0,0,0,.65)';
+  g.beginPath();
+  g.arc(S / 2, S / 2, S / 2 - 8, 0, Math.PI * 2);
+  g.stroke();
+  if (id === 0) {
+    g.fillStyle = '#e5322b';
+    g.beginPath();
+    g.arc(S / 2, S / 2, 14, 0, Math.PI * 2);
+    g.fill();
+  } else {
+    g.fillStyle = '#fbfaf6';
+    g.beginPath();
+    g.arc(S / 2, S / 2, 58, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#151515';
+    g.font = '800 84px -apple-system, "SF Pro Rounded", Helvetica, Arial, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(id), S / 2, S / 2 + 6);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
 function puffTexture() {
   const c = canvas(64, 64);
   const g = c.getContext('2d');
@@ -164,6 +210,8 @@ export class View {
     this.pocketAnim = new Map();
     this.puffs = [];
     this.ballMeshes = [];
+    this.flatMeshes = [];
+    this.flatMode = false;
 
     this.buildLights();
     this.buildTable();
@@ -529,6 +577,51 @@ export class View {
     felt.receiveShadow = true;
     g.add(felt);
 
+    // spots, head string and rack outline printed on the cloth
+    const mc = canvas(2048, 1024);
+    const mg = mc.getContext('2d');
+    const PX = (x) => ((x + HL) / L) * 2048;
+    const PY = (y) => ((HW - y) / W) * 1024;
+    mg.strokeStyle = 'rgba(255,255,255,.5)';
+    mg.fillStyle = 'rgba(255,255,255,.7)';
+    mg.lineWidth = 3;
+    mg.lineJoin = 'round';
+    mg.beginPath();
+    mg.moveTo(PX(HEAD_X), PY(-HW + 0.03));
+    mg.lineTo(PX(HEAD_X), PY(HW - 0.03));
+    mg.stroke();
+    for (const x of [HEAD_X, 0, FOOT_X]) {
+      mg.beginPath();
+      mg.arc(PX(x), PY(0), 8, 0, Math.PI * 2);
+      mg.fill();
+    }
+    const gap = 2 * R + 0.0004;
+    const apexX = FOOT_X - 2 * R;
+    const backX = FOOT_X + 2 * Math.sqrt(3) * gap + 3 * R;
+    const half = 2 * gap + Math.sqrt(3) * R;
+    mg.beginPath();
+    mg.moveTo(PX(apexX), PY(0));
+    mg.lineTo(PX(backX), PY(half));
+    mg.lineTo(PX(backX), PY(-half));
+    mg.closePath();
+    mg.stroke();
+    const mt = new THREE.CanvasTexture(mc);
+    mt.colorSpace = THREE.SRGBColorSpace;
+    mt.anisotropy = 8;
+    const marks = new THREE.Mesh(new THREE.PlaneGeometry(L, W), new THREE.MeshBasicMaterial({ map: mt, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    marks.rotation.x = -Math.PI / 2;
+    marks.position.y = 0.0006;
+    marks.renderOrder = 1;
+    g.add(marks);
+    // soft highlight of the area behind the head string, shown while placing for the break
+    const zone = new THREE.Mesh(new THREE.PlaneGeometry(HL + HEAD_X, W), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.13, depthWrite: false }));
+    zone.rotation.x = -Math.PI / 2;
+    zone.position.set((-HL + HEAD_X) / 2, 0.0008, 0);
+    zone.renderOrder = 2;
+    zone.visible = false;
+    g.add(zone);
+    this.breakZone = zone;
+
     // wooden frame with pocket openings
     const hole = radialShape((c, s) => {
       let r = rectRadius(c, s, HL + CW, HW + CW);
@@ -635,6 +728,14 @@ export class View {
       m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
       this.scene.add(m);
       this.ballMeshes.push(m);
+      const flat = new THREE.Mesh(
+        new THREE.CircleGeometry(R * 0.97, 40),
+        new THREE.MeshBasicMaterial({ map: flatTexture(i), transparent: true, toneMapped: false }),
+      );
+      flat.visible = false;
+      flat.renderOrder = 4;
+      this.scene.add(flat);
+      this.flatMeshes.push(flat);
     }
     this.ghost = new THREE.Mesh(
       new THREE.SphereGeometry(R, 32, 16),
@@ -766,6 +867,7 @@ export class View {
     r.pitch += (g.pitch - r.pitch) * k;
     r.dist += (g.dist - r.dist) * k;
     r.fov += (g.fov - r.fov) * k;
+    this.flatMode = r.pitch > 1.25;
     const cp = Math.cos(r.pitch);
     const fx = Math.cos(r.yaw);
     const fz = -Math.sin(r.yaw);
@@ -823,6 +925,23 @@ export class View {
         m.scale.setScalar(1 - e * 0.15);
         m.visible = a.t < 0.5;
       }
+      const f = this.flatMeshes[b.id];
+      f.visible = this.flatMode && m.visible && b.inPlay;
+      if (f.visible) {
+        f.position.set(m.position.x, 2 * R + 0.0004, m.position.z);
+        // keep the number upright on screen
+        f.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, this.rig.yaw - Math.PI / 2, 0, 'YXZ'));
+      }
+    }
+  }
+
+  // Mark balls that were already pocketed as gone, so they don't replay the drop animation.
+  hidePocketed(balls) {
+    this.pocketAnim.clear();
+    for (const b of balls) {
+      if (b.inPlay || b.pocket < 0) continue;
+      const p = POCKETS[b.pocket];
+      this.pocketAnim.set(b.id, { t: 10, x0: p.x, z0: -p.y, px: p.x, pz: -p.y });
     }
   }
 
